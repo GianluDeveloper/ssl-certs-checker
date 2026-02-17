@@ -36,7 +36,7 @@ func (a *App) Run(ctx context.Context, cfg *config.AppConfig) error {
 		return fmt.Errorf("failed to check certificates: %w", err)
 	}
 
-	if err := a.formatter.Format(result, cfg.OutputFormat); err != nil {
+	if err := a.formatter.FormatTo(result, cfg.OutputFormat, cfg.OutputFile); err != nil {
 		return fmt.Errorf("failed to format output: %w", err)
 	}
 

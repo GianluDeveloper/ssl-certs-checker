@@ -252,6 +252,10 @@ func (c *AppConfig) Validate() error {
 		return fmt.Errorf("invalid output format: %s (supported: table, json, yaml)", c.OutputFormat)
 	}
 
+	if c.OutputFile != "" && strings.TrimSpace(c.OutputFile) == "" {
+		return fmt.Errorf("output file path cannot be empty")
+	}
+
 	return nil
 }
 

@@ -13,4 +13,5 @@ type AppConfig struct {
 	Timeout          int
 	Insecure         bool
 	OutputFormat     string
+	OutputFile       string
 }

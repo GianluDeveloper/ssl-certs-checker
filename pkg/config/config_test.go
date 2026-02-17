@@ -426,6 +426,15 @@ func TestAppConfig_Validate(t *testing.T) {
 			},
 		},
 		{
+			name: "valid config with output file",
+			config: AppConfig{
+				Domains:      "example.com",
+				Timeout:      5,
+				OutputFormat: "json",
+				OutputFile:   "result.json",
+			},
+		},
+		{
 			name: "no host source",
 			config: AppConfig{
 				Timeout: 5,
@@ -509,6 +518,15 @@ func TestAppConfig_Validate(t *testing.T) {
 				Domains:      "example.com",
 				Timeout:      5,
 				OutputFormat: "xml",
+			},
+			wantErr: true,
+		},
+		{
+			name: "blank output file path",
+			config: AppConfig{
+				Domains:    "example.com",
+				Timeout:    5,
+				OutputFile: "   ",
 			},
 			wantErr: true,
 		},

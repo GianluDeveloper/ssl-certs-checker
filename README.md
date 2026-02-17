@@ -22,6 +22,7 @@ It connects to each target, performs a TLS handshake, extracts the leaf certific
 - Configurable timeout per connection
 - Optional insecure mode to skip certificate verification
 - Multiple output formats (`table`, `json`, `yaml`)
+- Optional file output via `--output-file`
 - Graceful shutdown on `SIGINT`/`SIGTERM`
 
 ## Requirements
@@ -80,6 +81,7 @@ GLOBAL OPTIONS:
    --timeout int, -t int             dialer timeout in second(s) (default: 5)
    --insecure, -k                    skip the verification of certificates (default: false)
    --output string, -o string        output format (table, json, yaml) (default: "table")
+   --output-file string              write formatted output to file (optional)
    --help, -h                        show help
 ```
 
@@ -217,9 +219,16 @@ Use `--output` with:
 - `json`
 - `yaml`
 
+Use `--output-file` to write the formatted result to a file instead of `stdout`.
+
+Notes:
+- Parent directory for `--output-file` must already exist
+- Existing output file permissions are preserved on overwrite
+- Table-mode host errors are still printed to `stderr`
+
 ### Table output
 
-- Prints certificate rows to `stdout`
+- By default, prints certificate rows to `stdout`
 - Columns:
   - `Host`
   - `Common Name`
@@ -331,6 +340,12 @@ ssl-certs-checker --domains "example.com:443,example.com:8443"
 
 ```bash
 ssl-certs-checker --domains-file ./hosts.txt --output json
+```
+
+### Write JSON output to a file
+
+```bash
+ssl-certs-checker --domains "github.com,google.com" --output json --output-file ./result.json
 ```
 
 ### Check a slice of a large domains file

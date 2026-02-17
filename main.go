@@ -72,6 +72,12 @@ func main() {
 				Usage:    "output format (table, json, yaml)",
 				Required: false,
 			},
+			&cli.StringFlag{
+				Name:     "output-file",
+				Value:    "",
+				Usage:    "write formatted output to file (optional)",
+				Required: false,
+			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			cfg := &config.AppConfig{
@@ -83,6 +89,7 @@ func main() {
 				Timeout:          c.Int("timeout"),
 				Insecure:         c.Bool("insecure"),
 				OutputFormat:     c.String("output"),
+				OutputFile:       c.String("output-file"),
 			}
 
 			// Create a context that can be cancelled by signals
