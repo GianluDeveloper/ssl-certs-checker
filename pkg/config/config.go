@@ -75,6 +75,44 @@ func ParseDomainsFromString(domains string) ([]string, error) {
 	return hosts, nil
 }
 
+// ParseDomainsFromFile parses newline-separated domains from a file
+func ParseDomainsFromFile(path string) ([]string, error) {
+	if strings.TrimSpace(path) == "" {
+		return nil, fmt.Errorf("domains file path cannot be empty")
+	}
+
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil, fmt.Errorf("domains file does not exist: %s", path)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read domains file: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	var hosts []string
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		if err := validateHost(trimmed); err != nil {
+			return nil, fmt.Errorf("invalid domain at line %d (%s): %w", i+1, trimmed, err)
+		}
+
+		hosts = append(hosts, trimmed)
+	}
+
+	if len(hosts) == 0 {
+		return nil, fmt.Errorf("no valid domains found in the provided file")
+	}
+
+	return hosts, nil
+}
+
 // validateHost validates a host string format
 func validateHost(host string) error {
 	host = strings.TrimSpace(host)
@@ -143,12 +181,22 @@ func validateHost(host string) error {
 
 // Validate validates the application configuration
 func (c *AppConfig) Validate() error {
-	if c.ConfigFile == "" && c.Domains == "" {
-		return fmt.Errorf("either --config or --domains must be specified")
+	if c.ConfigFile == "" && c.Domains == "" && c.DomainsFile == "" {
+		return fmt.Errorf("one of --config, --domains, or --domains-file must be specified")
 	}
 
-	if c.ConfigFile != "" && c.Domains != "" {
-		return fmt.Errorf("--config and --domains cannot be used together")
+	sourceCount := 0
+	if c.ConfigFile != "" {
+		sourceCount++
+	}
+	if c.Domains != "" {
+		sourceCount++
+	}
+	if c.DomainsFile != "" {
+		sourceCount++
+	}
+	if sourceCount > 1 {
+		return fmt.Errorf("--config, --domains, and --domains-file are mutually exclusive")
 	}
 
 	if c.Timeout <= 0 {
@@ -176,6 +224,14 @@ func (c *AppConfig) GetHosts() ([]string, error) {
 		hosts, err := ParseDomainsFromString(c.Domains)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse domains: %w", err)
+		}
+		return hosts, nil
+	}
+
+	if c.DomainsFile != "" {
+		hosts, err := ParseDomainsFromFile(c.DomainsFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse domains file: %w", err)
 		}
 		return hosts, nil
 	}

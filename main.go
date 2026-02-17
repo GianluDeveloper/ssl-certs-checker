@@ -32,6 +32,13 @@ func main() {
 				Usage:    "comma-separated list of domains to check (e.g., example.com,google.com:443)",
 				Required: false,
 			},
+			&cli.StringFlag{
+				Name:     "domains-file",
+				Aliases:  []string{"f"},
+				Value:    "",
+				Usage:    "file containing newline-separated domains to check",
+				Required: false,
+			},
 			&cli.IntFlag{
 				Name:     "timeout",
 				Aliases:  []string{"t"},
@@ -58,6 +65,7 @@ func main() {
 			cfg := &config.AppConfig{
 				ConfigFile:   c.String("config"),
 				Domains:      c.String("domains"),
+				DomainsFile:  c.String("domains-file"),
 				Timeout:      c.Int("timeout"),
 				Insecure:     c.Bool("insecure"),
 				OutputFormat: c.String("output"),

@@ -85,6 +85,68 @@ func TestParseDomainsFromString(t *testing.T) {
 	}
 }
 
+func TestParseDomainsFromFile(t *testing.T) {
+	// Create a temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "ssl-cert-domain-file-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	validDomainsPath := filepath.Join(tempDir, "domains.txt")
+	validDomainsContent := " example.com \n\n google.com:443 \n   \ngithub.com\n"
+	if err := os.WriteFile(validDomainsPath, []byte(validDomainsContent), 0644); err != nil {
+		t.Fatalf("Failed to write valid domains file: %v", err)
+	}
+
+	got, err := ParseDomainsFromFile(validDomainsPath)
+	if err != nil {
+		t.Errorf("ParseDomainsFromFile() unexpected error: %v", err)
+	}
+
+	want := []string{"example.com", "google.com:443", "github.com"}
+	if len(got) != len(want) {
+		t.Fatalf("ParseDomainsFromFile() length = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("ParseDomainsFromFile()[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+
+	emptyDomainsPath := filepath.Join(tempDir, "empty-domains.txt")
+	emptyDomainsContent := "\n  \n\t\r\n"
+	if err := os.WriteFile(emptyDomainsPath, []byte(emptyDomainsContent), 0644); err != nil {
+		t.Fatalf("Failed to write empty domains file: %v", err)
+	}
+
+	_, err = ParseDomainsFromFile(emptyDomainsPath)
+	if err == nil {
+		t.Error("ParseDomainsFromFile() expected error for empty domains file but got none")
+	}
+
+	invalidDomainsPath := filepath.Join(tempDir, "invalid-domains.txt")
+	invalidDomainsContent := "example.com\ninvalid domain\n"
+	if err := os.WriteFile(invalidDomainsPath, []byte(invalidDomainsContent), 0644); err != nil {
+		t.Fatalf("Failed to write invalid domains file: %v", err)
+	}
+
+	_, err = ParseDomainsFromFile(invalidDomainsPath)
+	if err == nil {
+		t.Error("ParseDomainsFromFile() expected error for invalid domains file but got none")
+	}
+
+	_, err = ParseDomainsFromFile("/non/existent/domains.txt")
+	if err == nil {
+		t.Error("ParseDomainsFromFile() expected error for non-existent file but got none")
+	}
+
+	_, err = ParseDomainsFromFile("")
+	if err == nil {
+		t.Error("ParseDomainsFromFile() expected error for empty path but got none")
+	}
+}
+
 func TestValidateHost(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -280,6 +342,14 @@ func TestAppConfig_Validate(t *testing.T) {
 			},
 		},
 		{
+			name: "valid config with domains file",
+			config: AppConfig{
+				DomainsFile:  "domains.txt",
+				Timeout:      10,
+				OutputFormat: "json",
+			},
+		},
+		{
 			name: "valid config with empty output format",
 			config: AppConfig{
 				Domains: "example.com",
@@ -287,7 +357,7 @@ func TestAppConfig_Validate(t *testing.T) {
 			},
 		},
 		{
-			name: "no config or domains",
+			name: "no host source",
 			config: AppConfig{
 				Timeout: 5,
 			},
@@ -299,6 +369,24 @@ func TestAppConfig_Validate(t *testing.T) {
 				ConfigFile: "config.yaml",
 				Domains:    "example.com",
 				Timeout:    5,
+			},
+			wantErr: true,
+		},
+		{
+			name: "config and domains file",
+			config: AppConfig{
+				ConfigFile:  "config.yaml",
+				DomainsFile: "domains.txt",
+				Timeout:     5,
+			},
+			wantErr: true,
+		},
+		{
+			name: "domains and domains file",
+			config: AppConfig{
+				Domains:     "example.com",
+				DomainsFile: "domains.txt",
+				Timeout:     5,
 			},
 			wantErr: true,
 		},
