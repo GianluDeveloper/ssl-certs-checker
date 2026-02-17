@@ -75,6 +75,8 @@ GLOBAL OPTIONS:
    --config string, -C string        config file
    --domains string, -d string       comma-separated list of domains to check (e.g., example.com,google.com:443)
    --domains-file string, -f string  file containing newline-separated domains to check
+   --skip int                        number of lines to skip from --domains-file before parsing (default: 0)
+   --limit int                       maximum number of lines to parse from --domains-file after --skip (0 means no limit) (default: 0)
    --timeout int, -t int             dialer timeout in second(s) (default: 5)
    --insecure, -k                    skip the verification of certificates (default: false)
    --output string, -o string        output format (table, json, yaml) (default: "table")
@@ -117,6 +119,19 @@ Run:
 ```bash
 ssl-certs-checker --domains-file ./hosts.txt
 ```
+
+Run with line window:
+
+```bash
+ssl-certs-checker --domains-file ./hosts.txt --skip 100 --limit 500
+```
+
+Behavior:
+- Empty lines are ignored
+- Values are trimmed
+- Host/port syntax is validated before execution
+- Optional `--skip N` skips the first `N` lines in the file
+- Optional `--limit N` processes at most `N` lines after `--skip` (`0` means no limit)
 
 Docker run with file mount:
 
@@ -318,6 +333,12 @@ ssl-certs-checker --domains "example.com:443,example.com:8443"
 ssl-certs-checker --domains-file ./hosts.txt --output json
 ```
 
+### Check a slice of a large domains file
+
+```bash
+ssl-certs-checker --domains-file ./hosts.txt --skip 1000 --limit 200 --output table
+```
+
 ### Check from YAML config with longer timeout
 
 ```bash
@@ -339,6 +360,14 @@ You did not provide an input source. Add exactly one of these flags.
 ### `--config, --domains, and --domains-file are mutually exclusive`
 
 More than one input source was provided. Keep only one.
+
+### `--skip and --limit can only be used with --domains-file`
+
+`--skip` and `--limit` are only valid when reading domains from a file (`-f`).
+
+### `skip must be non-negative` / `limit must be non-negative`
+
+Use `0` or positive integers for both options.
 
 ### `invalid port number` or `port number out of range`
 

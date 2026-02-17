@@ -40,6 +40,18 @@ func main() {
 				Required: false,
 			},
 			&cli.IntFlag{
+				Name:     "skip",
+				Value:    0,
+				Usage:    "number of lines to skip from --domains-file before parsing",
+				Required: false,
+			},
+			&cli.IntFlag{
+				Name:     "limit",
+				Value:    0,
+				Usage:    "maximum number of lines to parse from --domains-file after --skip (0 means no limit)",
+				Required: false,
+			},
+			&cli.IntFlag{
 				Name:     "timeout",
 				Aliases:  []string{"t"},
 				Value:    defaultDialerTimeout,
@@ -63,12 +75,14 @@ func main() {
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			cfg := &config.AppConfig{
-				ConfigFile:   c.String("config"),
-				Domains:      c.String("domains"),
-				DomainsFile:  c.String("domains-file"),
-				Timeout:      c.Int("timeout"),
-				Insecure:     c.Bool("insecure"),
-				OutputFormat: c.String("output"),
+				ConfigFile:       c.String("config"),
+				Domains:          c.String("domains"),
+				DomainsFile:      c.String("domains-file"),
+				DomainsFileSkip:  c.Int("skip"),
+				DomainsFileLimit: c.Int("limit"),
+				Timeout:          c.Int("timeout"),
+				Insecure:         c.Bool("insecure"),
+				OutputFormat:     c.String("output"),
 			}
 
 			// Create a context that can be cancelled by signals

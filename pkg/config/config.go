@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strconv"
@@ -77,33 +78,65 @@ func ParseDomainsFromString(domains string) ([]string, error) {
 
 // ParseDomainsFromFile parses newline-separated domains from a file
 func ParseDomainsFromFile(path string) ([]string, error) {
+	return ParseDomainsFromFileWithRange(path, 0, 0)
+}
+
+// ParseDomainsFromFileWithRange parses newline-separated domains from a file with optional line range controls.
+// The skip and limit parameters operate on raw file lines before trimming/validation.
+// A limit of 0 means no limit.
+func ParseDomainsFromFileWithRange(path string, skip, limit int) ([]string, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, fmt.Errorf("domains file path cannot be empty")
 	}
 
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil, fmt.Errorf("domains file does not exist: %s", path)
+	if skip < 0 {
+		return nil, fmt.Errorf("skip must be non-negative")
 	}
 
-	data, err := os.ReadFile(path)
+	if limit < 0 {
+		return nil, fmt.Errorf("limit must be non-negative")
+	}
+
+	file, err := os.Open(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("domains file does not exist: %s", path)
+		}
 		return nil, fmt.Errorf("cannot read domains file: %w", err)
 	}
+	defer file.Close()
 
-	lines := strings.Split(string(data), "\n")
+	scanner := bufio.NewScanner(file)
+	// 1 MiB line cap is enough for host entries while protecting memory usage.
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
 	var hosts []string
+	lineNumber := 0
+	selected := 0
+	for scanner.Scan() {
+		lineNumber++
+		if lineNumber <= skip {
+			continue
+		}
+		if limit > 0 && selected >= limit {
+			break
+		}
+		selected++
 
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
+		trimmed := strings.TrimSpace(scanner.Text())
 		if trimmed == "" {
 			continue
 		}
 
 		if err := validateHost(trimmed); err != nil {
-			return nil, fmt.Errorf("invalid domain at line %d (%s): %w", i+1, trimmed, err)
+			return nil, fmt.Errorf("invalid domain at line %d (%s): %w", lineNumber, trimmed, err)
 		}
 
 		hosts = append(hosts, trimmed)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("cannot read domains file: %w", err)
 	}
 
 	if len(hosts) == 0 {
@@ -199,6 +232,18 @@ func (c *AppConfig) Validate() error {
 		return fmt.Errorf("--config, --domains, and --domains-file are mutually exclusive")
 	}
 
+	if c.DomainsFileSkip < 0 {
+		return fmt.Errorf("skip must be non-negative")
+	}
+
+	if c.DomainsFileLimit < 0 {
+		return fmt.Errorf("limit must be non-negative")
+	}
+
+	if c.DomainsFile == "" && (c.DomainsFileSkip > 0 || c.DomainsFileLimit > 0) {
+		return fmt.Errorf("--skip and --limit can only be used with --domains-file")
+	}
+
 	if c.Timeout <= 0 {
 		return fmt.Errorf("timeout must be positive")
 	}
@@ -229,7 +274,7 @@ func (c *AppConfig) GetHosts() ([]string, error) {
 	}
 
 	if c.DomainsFile != "" {
-		hosts, err := ParseDomainsFromFile(c.DomainsFile)
+		hosts, err := ParseDomainsFromFileWithRange(c.DomainsFile, c.DomainsFileSkip, c.DomainsFileLimit)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse domains file: %w", err)
 		}

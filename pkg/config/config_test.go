@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -144,6 +145,72 @@ func TestParseDomainsFromFile(t *testing.T) {
 	_, err = ParseDomainsFromFile("")
 	if err == nil {
 		t.Error("ParseDomainsFromFile() expected error for empty path but got none")
+	}
+}
+
+func TestParseDomainsFromFileWithRange(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "ssl-cert-domain-file-range-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	validPath := filepath.Join(tempDir, "domains-range.txt")
+	validContent := "first.example.com\n\nsecond.example.com:443\nthird.example.com\nfourth.example.com\n"
+	if err := os.WriteFile(validPath, []byte(validContent), 0644); err != nil {
+		t.Fatalf("Failed to write domains range file: %v", err)
+	}
+
+	got, err := ParseDomainsFromFileWithRange(validPath, 1, 3)
+	if err != nil {
+		t.Fatalf("ParseDomainsFromFileWithRange() unexpected error: %v", err)
+	}
+
+	want := []string{"second.example.com:443", "third.example.com"}
+	if len(got) != len(want) {
+		t.Fatalf("ParseDomainsFromFileWithRange() length = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("ParseDomainsFromFileWithRange()[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+
+	got, err = ParseDomainsFromFileWithRange(validPath, 3, 2)
+	if err != nil {
+		t.Fatalf("ParseDomainsFromFileWithRange() unexpected error: %v", err)
+	}
+	if len(got) != 2 || got[0] != "third.example.com" || got[1] != "fourth.example.com" {
+		t.Errorf("ParseDomainsFromFileWithRange() with skip=3,limit=2 got %v", got)
+	}
+
+	_, err = ParseDomainsFromFileWithRange(validPath, 100, 1)
+	if err == nil {
+		t.Error("ParseDomainsFromFileWithRange() expected error when selected range has no valid domains but got none")
+	}
+
+	invalidPath := filepath.Join(tempDir, "domains-invalid-range.txt")
+	invalidContent := "first.example.com\nsecond.example.com\ninvalid domain\n"
+	if err := os.WriteFile(invalidPath, []byte(invalidContent), 0644); err != nil {
+		t.Fatalf("Failed to write invalid domains file: %v", err)
+	}
+
+	_, err = ParseDomainsFromFileWithRange(invalidPath, 1, 2)
+	if err == nil {
+		t.Fatal("ParseDomainsFromFileWithRange() expected error for invalid domain but got none")
+	}
+	if !strings.Contains(err.Error(), "line 3") {
+		t.Errorf("ParseDomainsFromFileWithRange() error should reference original line number, got: %v", err)
+	}
+
+	_, err = ParseDomainsFromFileWithRange(validPath, -1, 1)
+	if err == nil {
+		t.Error("ParseDomainsFromFileWithRange() expected error for negative skip but got none")
+	}
+
+	_, err = ParseDomainsFromFileWithRange(validPath, 1, -1)
+	if err == nil {
+		t.Error("ParseDomainsFromFileWithRange() expected error for negative limit but got none")
 	}
 }
 
@@ -344,9 +411,11 @@ func TestAppConfig_Validate(t *testing.T) {
 		{
 			name: "valid config with domains file",
 			config: AppConfig{
-				DomainsFile:  "domains.txt",
-				Timeout:      10,
-				OutputFormat: "json",
+				DomainsFile:      "domains.txt",
+				DomainsFileSkip:  10,
+				DomainsFileLimit: 20,
+				Timeout:          10,
+				OutputFormat:     "json",
 			},
 		},
 		{
@@ -391,6 +460,42 @@ func TestAppConfig_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "skip without domains file",
+			config: AppConfig{
+				Domains:         "example.com",
+				DomainsFileSkip: 1,
+				Timeout:         5,
+			},
+			wantErr: true,
+		},
+		{
+			name: "limit without domains file",
+			config: AppConfig{
+				Domains:          "example.com",
+				DomainsFileLimit: 1,
+				Timeout:          5,
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative skip",
+			config: AppConfig{
+				DomainsFile:     "domains.txt",
+				DomainsFileSkip: -1,
+				Timeout:         5,
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative limit",
+			config: AppConfig{
+				DomainsFile:      "domains.txt",
+				DomainsFileLimit: -1,
+				Timeout:          5,
+			},
+			wantErr: true,
+		},
+		{
 			name: "invalid timeout",
 			config: AppConfig{
 				Domains: "example.com",
@@ -423,5 +528,42 @@ func TestAppConfig_Validate(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAppConfig_GetHosts_DomainsFileRange(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "ssl-cert-get-hosts-range-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	domainsPath := filepath.Join(tempDir, "domains.txt")
+	content := "alpha.example.com\nbeta.example.com\ngamma.example.com\ndelta.example.com\n"
+	if err := os.WriteFile(domainsPath, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write domains file: %v", err)
+	}
+
+	cfg := AppConfig{
+		DomainsFile:      domainsPath,
+		DomainsFileSkip:  1,
+		DomainsFileLimit: 2,
+		Timeout:          5,
+		OutputFormat:     "table",
+	}
+
+	got, err := cfg.GetHosts()
+	if err != nil {
+		t.Fatalf("GetHosts() unexpected error: %v", err)
+	}
+
+	want := []string{"beta.example.com", "gamma.example.com"}
+	if len(got) != len(want) {
+		t.Fatalf("GetHosts() length = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("GetHosts()[%d] = %q, want %q", i, got[i], want[i])
+		}
 	}
 }
